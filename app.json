@@ -23,7 +23,8 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [],
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,9 +34,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "fb97f4c4-6809-412c-9f13-7c6bac046dcd"
+        "projectId": "e8ff7844-3ddb-424c-b84d-d074637dec2c"
       }
     },
-    "owner": "sidritmucaj"
+    "owner": "fradomos"
   }
 }

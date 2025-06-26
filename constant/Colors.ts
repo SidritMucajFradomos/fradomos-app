@@ -6,6 +6,7 @@ export const Colors = {
   textPrimary: '#0F172A',  // slate‑900
   textSecondary: '#475569',// slate‑600
   border: '#E2E8F0',       // slate‑200
+  error: '#ef4444',
 };
 
 export const Font = {

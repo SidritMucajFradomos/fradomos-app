@@ -6,12 +6,14 @@ import LoginScreen from '../screens/LoginScreen';
 import HomesScreen from '../screens/HomesScreen'; // 🆕 All buildings
 import HomeScreen from '../screens/HomeScreen';   // Rooms in one home
 import RoomScreen from '../screens/RoomScreen';   // Devices in one room
+import SignupScreen from '../screens/SignupScreen'; // ✅ Import this
 
 export type RootStackParamList = {
   Login: undefined;
-  Homes: undefined;                    // New screen: list of all homes
-  Home: { homeName: string };         // Rooms inside selected home
-  Room: { name: string };             // Devices inside selected room
+  Signup: undefined;                   // ✅ Add this line
+  Homes: undefined;
+  Home: { homeName: string };
+  Room: { name: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -19,12 +21,14 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Homes" component={HomesScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="Room" component={RoomScreen} />
-      </Stack.Navigator>
+<Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+  <Stack.Screen name="Login" component={LoginScreen} />
+  <Stack.Screen name="Signup" component={SignupScreen} />
+  <Stack.Screen name="Homes" component={HomesScreen} />
+  <Stack.Screen name="Home" component={HomeScreen} />
+  <Stack.Screen name="Room" component={RoomScreen} />
+</Stack.Navigator>
+
     </NavigationContainer>
   );
 }

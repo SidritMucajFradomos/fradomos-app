@@ -1,4 +1,3 @@
-// HomesScreen.tsx – List of all homes (responsive for web)
 import React, { useState } from 'react';
 import {
   View,
@@ -16,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '../constant/Colors';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MAX_WIDTH = 640;
 
@@ -40,6 +40,11 @@ export default function HomesScreen({ navigation }: { navigation: NavProp }) {
     setNewName('');
   };
 
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    navigation.replace('Login');
+  };
+
   const renderHome = ({ item }: { item: Home }) => (
     <TouchableOpacity
       style={[styles.card, Platform.OS === 'web' && styles.cardWeb]}
@@ -56,10 +61,18 @@ export default function HomesScreen({ navigation }: { navigation: NavProp }) {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>My Homes</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-            <Ionicons name="add-circle-outline" size={28} color={Colors.primary} />
-            <Text style={styles.addTxt}>Add Home</Text>
-          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing(2) }}>
+            <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+              <Ionicons name="add-circle-outline" size={28} color={Colors.primary} />
+              <Text style={styles.addTxt}>Add Home</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleLogout} style={{ marginLeft: Spacing(4) }}>
+              <Ionicons name="log-out-outline" size={28} color="#d33" />
+              <Text style={[styles.addTxt, { color: '#d33' }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Homes list */}
@@ -72,7 +85,12 @@ export default function HomesScreen({ navigation }: { navigation: NavProp }) {
       </View>
 
       {/* Add Home modal */}
-      <Modal transparent animationType="slide" visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+      <Modal
+        transparent
+        animationType="slide"
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View style={styles.backdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Add Home</Text>

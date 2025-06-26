@@ -1,4 +1,3 @@
-// hooks/useMqttSensor.ts
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -14,6 +13,8 @@ export interface SensorData {
 const BROKER_WS = 'wss://fradomos.al/ws';
 const SENSOR_TOPIC = 'home/livingroom/sensor';
 
+let mqttClient: any; // Global shared client
+
 /* ---------------------------------------------------------------- *
  * ‑ MAIN HOOK                                                      *
  * ---------------------------------------------------------------- */
@@ -21,18 +22,16 @@ export default function useMqttSensor(): SensorData {
   const [data, setData] = useState<SensorData>({});
 
   useEffect(() => {
-    let client: any;
-
     /* ========= 1. WEB (Expo Web)  ========= */
     if (Platform.OS === 'web') {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Paho = require('paho-mqtt');            // browser build
-      client = new Paho.Client(BROKER_WS, 'web_' + Math.random());
+      const Paho = require('paho-mqtt'); // browser build
+      mqttClient = new Paho.Client(BROKER_WS, 'web_' + Math.random());
 
-      client.onConnectionLost = (resp: any) =>
+      mqttClient.onConnectionLost = (resp: any) =>
         console.warn('[MQTT] connection lost', resp.errorMessage);
 
-      client.onMessageArrived = (msg: any) => {
+      mqttClient.onMessageArrived = (msg: any) => {
         try {
           const json = JSON.parse(msg.payloadString);
           setData({ temperature: json.temperature, humidity: json.humidity });
@@ -41,13 +40,12 @@ export default function useMqttSensor(): SensorData {
         }
       };
 
-      client.connect({
+      mqttClient.connect({
         useSSL: true,
-        onSuccess: () => client.subscribe(SENSOR_TOPIC),
+        onSuccess: () => mqttClient.subscribe(SENSOR_TOPIC),
         onFailure: (e: any) => console.error('[MQTT] connect fail', e),
       });
     }
-
     /* ========= 2. NATIVE (Android / iOS)  ========= */
     else {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -60,16 +58,16 @@ export default function useMqttSensor(): SensorData {
         removeItem: (k: string) => Promise.resolve(delete (storage as any)[k]),
       };
 
-      client = new Client({
+      mqttClient = new Client({
         uri: BROKER_WS,
         clientId: 'native_' + Math.random(),
         storage,
       });
 
-      client.on('connectionLost', (resp: any) =>
+      mqttClient.on('connectionLost', (resp: any) =>
         console.warn('[MQTT] connection lost', resp.errorMessage));
 
-      client.on('messageReceived', (msg: any) => {
+      mqttClient.on('messageReceived', (msg: any) => {
         try {
           const json = JSON.parse(msg.payloadString);
           setData({ temperature: json.temperature, humidity: json.humidity });
@@ -78,17 +76,45 @@ export default function useMqttSensor(): SensorData {
         }
       });
 
-      client
+      mqttClient
         .connect()
-        .then(() => client.subscribe(SENSOR_TOPIC))
+        .then(() => mqttClient.subscribe(SENSOR_TOPIC))
         .catch((e: any) => console.error('[MQTT] native connect error', e));
     }
 
     /* ========= Clean‑up on unmount ========= */
     return () => {
-      try { client?.disconnect?.(); } catch { /* ignore */ }
+      try { mqttClient?.disconnect?.(); } catch { /* ignore */ }
     };
   }, []);
 
   return data;
+}
+
+/* ---------------------------------------------------------------- *
+ * ‑ PUBLISH MQTT MESSAGE (for use outside hook)                   *
+ * ---------------------------------------------------------------- */
+export async function publishMqttMessage(topic: string, message: string) {
+  if (!mqttClient) {
+    console.warn('[MQTT] Client not initialized yet');
+    return;
+  }
+
+  if (Platform.OS === 'web') {
+    if (mqttClient.isConnected()) {
+      mqttClient.publish(topic, message);
+    } else {
+      console.warn('[MQTT] Web client not connected');
+    }
+  } else {
+    if (mqttClient.isConnected()) {
+      try {
+        await mqttClient.send(topic, message);
+      } catch (err) {
+        console.error('[MQTT] Native send error', err);
+      }
+    } else {
+      console.warn('[MQTT] Native client not connected');
+    }
+  }
 }

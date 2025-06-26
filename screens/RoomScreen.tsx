@@ -1,4 +1,3 @@
-// RoomScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -18,6 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '../constant/Colors';
 import SensorBar from '../components/SensorBar';
+import { publishMqttMessage } from '../hooks/useMqttSensor';
 
 /* ---------- Nav types ---------- */
 type RootStackParamList = {
@@ -101,8 +101,24 @@ export default function RoomScreen({
   /* Helpers for existing cards */
   const toggleSwitch = (id: string) =>
     setDevices(p => p.map(d => (d.id === id && d.type === 'switch' ? { ...d, state: !d.state } : d)));
-  const updateAC = (id: string, changes: Partial<Omit<ACDevice, 'id' | 'type' | 'name'>>) =>
-    setDevices(p => p.map(d => (d.id === id && d.type === 'ac' ? { ...d, ...changes } : d)));
+
+  const updateAC = (id: string, changes: Partial<Omit<ACDevice, 'id' | 'type' | 'name'>>) => {
+    setDevices(p =>
+      p.map(d => {
+        if (d.id === id && d.type === 'ac') {
+          const updated = { ...d, ...changes };
+
+          // If power changed, publish MQTT message
+          if ('power' in changes) {
+            publishMqttMessage('ac/power', changes.power ? 'on' : 'off');
+          }
+
+          return updated;
+        }
+        return d;
+      })
+    );
+  };
 
   /* Card renderers */
   const SwitchCard = (device: SwitchDevice) => (
@@ -321,33 +337,72 @@ const styles = StyleSheet.create({
   modeOption: { flex: 1, backgroundColor: '#e2e8f0', paddingVertical: Spacing(2), borderRadius: 8, alignItems: 'center' },
   modeSelected: { backgroundColor: Colors.primary },
   modeText: { fontFamily: 'Dongle-Regular', fontSize: 28, color: Colors.textPrimary },
-  modeTextSel: { fontFamily: 'Dongle-Bold', color: Colors.surface },
+  modeTextSel: { color: 'white', fontWeight: 'bold' },
 
-  powerRow: { marginTop: Spacing(5), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing(2) },
-  powerLabel: { fontFamily: 'Dongle-Regular', fontSize: 28, color: Colors.textSecondary },
+  powerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing(4) },
+  powerLabel: { fontFamily: 'Dongle-Bold', fontSize: 32, color: Colors.textPrimary },
 
   /* Modal */
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalCard: { width: '85%', backgroundColor: Colors.surface, borderRadius: 12, padding: Spacing(6), gap: Spacing(4) },
-  modalTitle: { fontFamily: 'Dongle-Bold', fontSize: 40, color: Colors.textPrimary, textAlign: 'center' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: '#00000077',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing(6),
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing(4),
+  },
+  modalTitle: {
+    fontFamily: 'Dongle-Bold',
+    fontSize: 40,
+    marginBottom: Spacing(3),
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(3),
-    fontFamily: 'Dongle-Regular',
+    borderColor: '#ccc',
     fontSize: 28,
+    paddingHorizontal: Spacing(2),
+    paddingVertical: Spacing(1),
+    borderRadius: 8,
+    marginBottom: Spacing(3),
     color: Colors.textPrimary,
   },
-  modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing(2), alignItems: 'center' },
-
-  cancelBtn: { backgroundColor: '#e2e8f0', paddingVertical: Spacing(2), paddingHorizontal: Spacing(4), borderRadius: 8 },
-  cancelTxt: { fontFamily: 'Dongle-Regular', fontSize: 28, color: Colors.textPrimary },
-
-  saveBtn: { backgroundColor: Colors.primary, paddingVertical: Spacing(2), paddingHorizontal: Spacing(4), borderRadius: 8 },
-  saveTxt: { fontFamily: 'Dongle-Bold', fontSize: 28, color: Colors.surface },
-
-  delBtn: { backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center', gap: Spacing(1), paddingVertical: Spacing(2), paddingHorizontal: Spacing(4), borderRadius: 8 },
-  delTxt: { fontFamily: 'Dongle-Bold', fontSize: 28, color: '#fff' },
+  modalBtns: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing(2),
+  },
+  delBtn: {
+    flexDirection: 'row',
+    backgroundColor: Colors.error,
+    borderRadius: 8,
+    paddingHorizontal: Spacing(3),
+    paddingVertical: Spacing(2),
+    alignItems: 'center',
+    gap: Spacing(1),
+  },
+  delTxt: { color: 'white', fontSize: 20 },
+  cancelBtn: {
+    flex: 1,
+    marginHorizontal: Spacing(1),
+    paddingVertical: Spacing(2),
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.textSecondary,
+    alignItems: 'center',
+  },
+  cancelTxt: { fontSize: 20, color: Colors.textSecondary },
+  saveBtn: {
+    flex: 1,
+    marginHorizontal: Spacing(1),
+    paddingVertical: Spacing(2),
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  saveTxt: { fontSize: 20, color: 'white' },
 });

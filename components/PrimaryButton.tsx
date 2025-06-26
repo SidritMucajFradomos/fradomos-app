@@ -6,18 +6,22 @@ type Props = {
   title: string;
   onPress: () => void;
   style?: ViewStyle;
+  disabled?: boolean; // Added disabled prop
 };
 
-export default function PrimaryButton({ title, onPress, style }: Props) {
+export default function PrimaryButton({ title, onPress, style, disabled = false }: Props) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled} // Disable press events when disabled
       style={({ pressed }) => [
         styles.button,
-        pressed && { opacity: 0.85 },
+        pressed && !disabled && { opacity: 0.85 },
+        disabled && styles.disabledButton,
         style,
-      ]}>
-      <Text style={styles.text}>{title}</Text>
+      ]}
+    >
+      <Text style={[styles.text, disabled && styles.disabledText]}>{title}</Text>
     </Pressable>
   );
 }
@@ -30,10 +34,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  disabledButton: {
+    opacity: 0.6,
+  },
   text: {
     color: Colors.surface,
     fontSize: 25,
     fontWeight: '600',
     fontFamily: 'Dongle-Regular',
+  },
+  disabledText: {
+    color: '#ccc', // lighter text color when disabled
   },
 });
