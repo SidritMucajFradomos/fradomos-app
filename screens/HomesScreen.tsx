@@ -14,30 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing } from '../constant/Colors';
 
-const weatherIconName = 'partly-sunny-outline';
-const weatherTemperature = 26;
-const weatherCity = 'Tirana';
-
-function formatDateTime() {
-  const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  };
-  return now.toLocaleDateString(undefined, options);
-}
-
-function formatTime() {
-  const now = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    hour: '2-digit',
-    minute: '2-digit',
-  };
-  return now.toLocaleTimeString(undefined, options);
-}
-
-const API_URL = 'http://api.fradomos.al:3000';
+// WeatherAPI constants
+const WEATHER_API_KEY = 'e5e29c4936df4fff87b160026253006'; // Your API key
+const WEATHER_CITY = 'Shkoder'; // Change to desired city
 
 interface Home {
   id: string;
@@ -48,6 +27,12 @@ export default function HomesScreen({ navigation }: any) {
   const [homes, setHomes] = useState<Home[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Weather state
+  const [weatherTemp, setWeatherTemp] = useState<number | null>(null);
+  const [weatherIcon, setWeatherIcon] = useState<string | null>(null);
+  const [weatherCondition, setWeatherCondition] = useState<string>('');
+  const [weatherLoading, setWeatherLoading] = useState(true);
+
   const getToken = async () => await AsyncStorage.getItem('token');
 
   const fetchHomes = async () => {
@@ -56,8 +41,7 @@ export default function HomesScreen({ navigation }: any) {
       const token = await getToken();
       if (!token) throw new Error('You must be logged in');
 
-      // Fetch homes from /homes API (already returns owned + member homes)
-      const res = await fetch(`${API_URL}/homes`, {
+      const res = await fetch(`http://api.fradomos.al:3000/homes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -72,9 +56,72 @@ export default function HomesScreen({ navigation }: any) {
     }
   };
 
+  const fetchWeather = async () => {
+    setWeatherLoading(true);
+    try {
+      const res = await fetch(
+        `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${WEATHER_CITY}&aqi=no`
+      );
+      if (!res.ok) throw new Error('Failed to fetch weather');
+
+      const data = await res.json();
+
+      setWeatherTemp(Math.round(data.current.temp_c));
+      // WeatherAPI returns icon URL like "//cdn.weatherapi.com/weather/64x64/day/116.png"
+      // Extract icon name (e.g., "partly-sunny") or fallback to Ionicons equivalent
+      // For simplicity, map some weather codes to Ionicons names:
+
+      const condition = data.current.condition.text.toLowerCase();
+
+      setWeatherCondition(data.current.condition.text);
+
+      if (condition.includes('sunny') || condition.includes('clear')) {
+        setWeatherIcon('sunny-outline');
+      } else if (condition.includes('cloud')) {
+        setWeatherIcon('cloud-outline');
+      } else if (condition.includes('rain')) {
+        setWeatherIcon('rainy-outline');
+      } else if (condition.includes('storm')) {
+        setWeatherIcon('thunderstorm-outline');
+      } else if (condition.includes('snow')) {
+        setWeatherIcon('snow-outline');
+      } else if (condition.includes('fog') || condition.includes('mist')) {
+        setWeatherIcon('cloud-outline');
+      } else {
+        setWeatherIcon('partly-sunny-outline');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+      setWeatherTemp(null);
+      setWeatherIcon(null);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchHomes();
+    fetchWeather();
   }, []);
+
+  function formatDateTime() {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    };
+    return now.toLocaleDateString(undefined, options);
+  }
+
+  function formatTime() {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+    };
+    return now.toLocaleTimeString(undefined, options);
+  }
 
   const renderHome = ({ item }: { item: Home }) => (
     <TouchableOpacity
@@ -106,11 +153,17 @@ export default function HomesScreen({ navigation }: any) {
     <SafeAreaView style={styles.screenWrapper}>
       <View style={styles.container}>
         <View style={styles.weatherCard}>
-          <Ionicons name={weatherIconName} size={70} color="#3A85FF" />
-          <Text style={styles.temperature}>{weatherTemperature}°C</Text>
-          <Text style={styles.city}>{weatherCity}</Text>
-          <Text style={styles.date}>{formatDateTime()}</Text>
-          <Text style={styles.time}>{formatTime()}</Text>
+          {weatherLoading ? (
+            <ActivityIndicator size="large" color="#3A85FF" />
+          ) : (
+            <>
+              <Ionicons name={weatherIcon || 'partly-sunny-outline'} size={70} color="#3A85FF" />
+              <Text style={styles.temperature}>{weatherTemp !== null ? weatherTemp : '--'}°C</Text>
+              <Text style={styles.city}>{WEATHER_CITY}</Text>
+              <Text style={styles.date}>{formatDateTime()}</Text>
+              <Text style={styles.time}>{formatTime()}</Text>
+            </>
+          )}
         </View>
 
         <Text style={styles.title}>My Homes</Text>

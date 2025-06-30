@@ -1,39 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  SafeAreaView,
-  FlatList,
-  TouchableOpacity,
-  Platform,
-  UIManager,
-  LayoutAnimation,
-  Alert,
-  ActivityIndicator,
+  View, Text, TextInput, StyleSheet, SafeAreaView, FlatList,
+  TouchableOpacity, Platform, UIManager, LayoutAnimation,
+  Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing } from '../constant/Colors';
 
-type User = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-};
+type User = { id: string; first_name: string; last_name: string; email: string; };
+type House = { id: string; name: string; };
 
-type House = {
-  id: string;
-  name: string;
-  users: User[];
-};
-
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
@@ -41,200 +19,147 @@ const API_URL = 'http://api.fradomos.al:3000';
 
 export default function UserManagementScreen() {
   const [houses, setHouses] = useState<House[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [membersMap, setMembersMap] = useState<Record<string, User[]>>({});
+  const [usersByEmail, setUsersByEmail] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState(false);
+
   const [expandedHouses, setExpandedHouses] = useState<Set<string>>(new Set());
   const [emailInput, setEmailInput] = useState('');
   const [selectedHouse, setSelectedHouse] = useState<string | null>(null);
 
-  const getToken = async () => {
-    return await AsyncStorage.getItem('token');
-  };
+  const getToken = async () => await AsyncStorage.getItem('token');
 
-  const fetchData = async () => {
+  async function load() {
     setLoading(true);
     try {
-      const token = await getToken();
-      if (!token) {
-        Alert.alert('Error', 'You must be logged in');
-        setLoading(false);
-        return;
-      }
+      const t = await getToken();
+      if (!t) throw new Error('Log in first');
+      const hdr = { headers: { Authorization: `Bearer ${t}` } };
 
-      // Fetch homes
-      const homesRes = await fetch(`${API_URL}/homes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!homesRes.ok) throw new Error('Failed to fetch homes');
-      const homesData: { id: string; name: string }[] = await homesRes.json();
+      const [homesRes, invitesRes, usersRes] = await Promise.all([
+        fetch(`${API_URL}/homes`, hdr),
+        fetch(`${API_URL}/home-invites`, hdr),
+        fetch(`${API_URL}/users`, hdr),
+      ]);
+      if (!homesRes.ok || !invitesRes.ok || !usersRes.ok) throw new Error('Data error');
+      const [homesData, invitesData, usersData]: [House[], any[], User[]] = await Promise.all([
+        homesRes.json(), invitesRes.json(), usersRes.json()
+      ]);
 
-      // Fetch home-members
-      const membersRes = await fetch(`${API_URL}/home-members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!membersRes.ok) throw new Error('Failed to fetch home members');
-      const membersData: { home_id: string; user_id: string }[] = await membersRes.json();
+      setHouses(homesData);
+      setInvites(invitesData);
+      setUsersByEmail(Object.fromEntries(usersData.map(u => [u.email.toLowerCase(), u])));
 
-      // Fetch all users
-      const usersRes = await fetch(`${API_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!usersRes.ok) throw new Error('Failed to fetch users');
-      const usersData: User[] = await usersRes.json();
-
-      // Map users by ID for quick lookup
-      const usersById: Record<string, User> = {};
-      usersData.forEach((user) => {
-        usersById[user.id] = user;
-      });
-
-      // Group users by home_id
-      const homeUsersMap: Record<string, User[]> = {};
-      membersData.forEach(({ home_id, user_id }) => {
-        if (!homeUsersMap[home_id]) homeUsersMap[home_id] = [];
-        const user = usersById[user_id];
-        if (user) {
-          homeUsersMap[home_id].push(user);
-        }
-      });
-
-      // Merge users into homes
-      const homesWithUsers: House[] = homesData.map((home) => ({
-        ...home,
-        users: homeUsersMap[home.id] || [],
-      }));
-
-      setHouses(homesWithUsers);
-    } catch (error) {
-      Alert.alert('Error', (error as Error).message);
+      const membs: Record<string, User[]> = {};
+      invitesData
+        .filter(i => i.status === 'accepted')
+        .forEach(i => {
+          const u = usersData.find(u2 => u2.id === i.invitee_id);
+          if (u) membs[i.home_id]?.push(u) || (membs[i.home_id] = [u]);
+        });
+      setMembersMap(membs);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const toggleHouse = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedHouses((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
-    });
+    const s = new Set(expandedHouses);
+    s.has(id) ? s.delete(id) : s.add(id);
+    setExpandedHouses(s);
   };
 
-  const handleAddUser = () => {
-    if (!emailInput.trim() || !selectedHouse) {
-      alert('Please enter an email and select a house.');
-      return;
+  const inviteUser = async () => {
+    if (!selectedHouse || !emailInput.trim()) return Alert.alert('Select house & enter email');
+    const u = usersByEmail[emailInput.toLowerCase()];
+    if (!u) return Alert.alert('User not found');
+
+    try {
+      const t = await getToken();
+      const res = await fetch(`${API_URL}/home-invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+        body: JSON.stringify({
+          home_id: selectedHouse,
+          invited_by: JSON.parse(atob((t as string).split('.')[1])).userId,
+          invitee_id: u.id
+        })
+      });
+      if (!res.ok) throw new Error('Invite failed');
+      Alert.alert('Invite sent');
+      setEmailInput('');
+      setSelectedHouse(null);
+      await load();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
     }
-    alert(`Add user ${emailInput} to house ${selectedHouse}`);
-    setEmailInput('');
-    setSelectedHouse(null);
   };
 
-  const renderUser = ({ item }: { item: User }) => (
-    <View style={styles.userCard}>
-      <TouchableOpacity style={styles.editBtn}>
-        <Ionicons name="create-outline" size={24} color={Colors.primary} />
-      </TouchableOpacity>
-      <Text style={styles.userName}>
-        {item.first_name} {item.last_name}
-      </Text>
-      <Text style={styles.userEmail}>{item.email}</Text>
-    </View>
+  if (loading) return (
+    <SafeAreaView style={[styles.wrapper, { justifyContent: 'center' }]}>
+      <ActivityIndicator size="large" color={Colors.primary} />
+    </SafeAreaView>
   );
-
-  const renderHouse = ({ item }: { item: House }) => {
-    const expanded = expandedHouses.has(item.id);
-    return (
-      <View style={styles.houseSection}>
-        <TouchableOpacity
-          style={styles.houseHeader}
-          onPress={() => toggleHouse(item.id)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.houseTitle}>{item.name}</Text>
-          <Ionicons
-            name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'}
-            size={28}
-            color={Colors.primary}
-          />
-        </TouchableOpacity>
-        {expanded && (
-          <FlatList
-            data={item.users}
-            keyExtractor={(user) => user.id}
-            renderItem={renderUser}
-            scrollEnabled={false}
-            contentContainerStyle={{ paddingBottom: Spacing(3) }}
-          />
-        )}
-      </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.wrapper, { justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.wrapper}>
-      {/* Add User Form at the top */}
       <View style={styles.addUserCard}>
-        <Text style={styles.addUserTitle}>Add User</Text>
+        <Text style={styles.addUserTitle}>Invite User to House</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter user email..."
+          placeholder="User email"
           value={emailInput}
           onChangeText={setEmailInput}
-          placeholderTextColor="#aaa"
           keyboardType="email-address"
           autoCapitalize="none"
         />
-
         <View style={styles.houseSelector}>
-          {houses.map((house) => (
+          {houses.map(h => (
             <TouchableOpacity
-              key={house.id}
-              style={[
-                styles.houseOption,
-                selectedHouse === house.id && styles.houseOptionSelected,
-              ]}
-              onPress={() => setSelectedHouse(house.id)}
-              activeOpacity={0.7}
+              key={h.id}
+              onPress={() => setSelectedHouse(h.id)}
+              style={[styles.houseOption, selectedHouse === h.id && styles.houseOptionSelected]}
             >
-              <Text
-                style={[
-                  styles.houseOptionText,
-                  selectedHouse === house.id && styles.houseOptionTextSelected,
-                ]}
-              >
-                {house.name}
+              <Text style={[styles.houseOptionText, selectedHouse === h.id && styles.houseOptionTextSelected]}>
+                {h.name}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-
-        <TouchableOpacity style={styles.addUserBtn} onPress={handleAddUser}>
-          <Text style={styles.addUserBtnText}>Add User</Text>
+        <TouchableOpacity style={styles.addUserBtn} onPress={inviteUser}>
+          <Text style={styles.addUserBtnText}>Send Invite</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Expandable Houses with Users */}
       <FlatList
-        data={houses}
-        keyExtractor={(item) => item.id}
-        renderItem={renderHouse}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
         style={{ paddingBottom: Spacing(8) }}
+        data={houses}
+        keyExtractor={h => h.id}
+        renderItem={({ item: h }) => {
+          const exp = expandedHouses.has(h.id);
+          const members = membersMap[h.id] || [];
+          return (
+            <View style={styles.houseSection}>
+              <TouchableOpacity style={styles.houseHeader} onPress={() => toggleHouse(h.id)}>
+                <Text style={styles.houseTitle}>{h.name}</Text>
+                <Ionicons name={exp ? 'chevron-up-outline' : 'chevron-down-outline'} size={28} color={Colors.primary}/>
+              </TouchableOpacity>
+              {exp && members.length === 0 && <Text style={{ margin: Spacing(3) }}>No accepted members yet.</Text>}
+              {exp && members.map(u => (
+                <View key={u.id} style={styles.userCard}>
+                  <Text style={styles.userName}>{u.first_name} {u.last_name}</Text>
+                  <Text style={styles.userEmail}>{u.email}</Text>
+                </View>
+              ))}
+            </View>
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -253,7 +178,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   houseSection: {
-    marginBottom: Spacing(6),
+    marginBottom: Spacing(5),
+    marginLeft: Spacing(5),
+    marginRight: Spacing(5),
   },
   houseHeader: {
     flexDirection: 'row',
@@ -301,6 +228,7 @@ const styles = StyleSheet.create({
     padding: Spacing(6),
     borderRadius: 16,
     margin: Spacing(5),
+    marginTop: Spacing(15),
     borderWidth: 1,
     borderColor: Colors.primary + '55',
   },

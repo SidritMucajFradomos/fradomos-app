@@ -10,6 +10,7 @@ import RoomScreen from '../screens/RoomScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import UserManagementScreen from '../screens/UserManagementScreen'; // ⬅️ your new user screen
 import Header from '../components/Header';
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -45,7 +46,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Users" component={withHeader(UserManagementScreen)} />
         {/* Placeholders for Settings and Notifications if not yet built */}
         <Stack.Screen name="Settings" component={withHeader(() => <></>)} />
-        <Stack.Screen name="Notifications" component={withHeader(() => <></>)} />
+        <Stack.Screen name="Notifications" component={withHeader(NotificationsScreen)} />
       </Stack.Navigator>
     </NavigationContainer>
   );
