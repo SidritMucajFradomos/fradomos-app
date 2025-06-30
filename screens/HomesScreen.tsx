@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,118 +6,142 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  Modal,
-  TextInput,
   Alert,
+  ActivityIndicator,
   Platform,
 } from 'react-native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing } from '../constant/Colors';
-import { RootStackParamList } from '../navigation/AppNavigator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Colors, Spacing } from '../constant/Colors';
 
-const MAX_WIDTH = 640;
+// Hardcoded weather info
+const weatherIconName = 'partly-sunny-outline';
+const weatherTemperature = 26; // °C
+const weatherCity = 'Tirana';
 
-type NavProp = NativeStackNavigationProp<RootStackParamList, 'Homes'>;
+function formatDateTime() {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  };
+  return now.toLocaleDateString(undefined, options);
+}
+
+function formatTime() {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+  return now.toLocaleTimeString(undefined, options);
+}
+
+const API_URL = 'http://api.fradomos.al:3000';
+
 type Home = { id: string; name: string };
 
-const initialHomes: Home[] = [
-  { id: '1', name: 'Main House' },
-  { id: '2', name: 'Vacation Villa' },
-];
+export default function HomesScreen({ navigation }: any) {
+  const [homes, setHomes] = useState<Home[]>([]);
+  const [loading, setLoading] = useState(false);
 
-export default function HomesScreen({ navigation }: { navigation: NavProp }) {
-  const [homes, setHomes] = useState<Home[]>(initialHomes);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newName, setNewName] = useState('');
-
-  const addHome = () => {
-    if (!newName.trim()) return Alert.alert('Please enter a name');
-    const newHome = { id: Date.now().toString(), name: newName.trim() };
-    setHomes((prev) => [...prev, newHome]);
-    setModalVisible(false);
-    setNewName('');
+  const getToken = async () => {
+    return await AsyncStorage.getItem('token');
   };
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem('token');
-    navigation.replace('Login');
+  const fetchHomes = async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Error', 'You must be logged in');
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/homes`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch homes');
+      }
+
+      const data: Home[] = await res.json();
+      setHomes(data);
+    } catch (error) {
+      Alert.alert('Error', (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchHomes();
+  }, []);
 
   const renderHome = ({ item }: { item: Home }) => (
     <TouchableOpacity
       style={[styles.card, Platform.OS === 'web' && styles.cardWeb]}
-      onPress={() => navigation.navigate('Home', { homeName: item.name })}
+      onPress={() =>
+        navigation.navigate('Home', { homeId: item.id, homeName: item.name })
+      }
+      activeOpacity={0.85}
     >
-      <Ionicons name="home-outline" size={32} color={Colors.primary} />
-      <Text style={styles.homeName}>{item.name}</Text>
+      <Ionicons name="home-outline" size={48} color={Colors.primary} style={{ marginBottom: Spacing(2) }} />
+      <Text style={styles.homeName} numberOfLines={2} textAlign="center">
+        {item.name}
+      </Text>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.screenWrapper, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screenWrapper}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>My Homes</Text>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing(2) }}>
-            <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-              <Ionicons name="add-circle-outline" size={28} color={Colors.primary} />
-              <Text style={styles.addTxt}>Add Home</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleLogout} style={{ marginLeft: Spacing(4) }}>
-              <Ionicons name="log-out-outline" size={28} color="#d33" />
-              <Text style={[styles.addTxt, { color: '#d33' }]}>Logout</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Weather Card */}
+        <View style={styles.weatherCard}>
+          <Ionicons name={weatherIconName} size={70} color="#3A85FF" />
+          <Text style={styles.temperature}>{weatherTemperature}°C</Text>
+          <Text style={styles.city}>{weatherCity}</Text>
+          <Text style={styles.date}>{formatDateTime()}</Text>
+          <Text style={styles.time}>{formatTime()}</Text>
         </View>
 
-        {/* Homes list */}
-        <FlatList
-          data={homes}
-          keyExtractor={(h) => h.id}
-          contentContainerStyle={{ paddingBottom: Spacing(8) }}
-          renderItem={renderHome}
-        />
+        <Text style={styles.title}>My Homes</Text>
+
+        {homes.length === 0 ? (
+          <Text style={styles.noHomesText}>You have no homes yet.</Text>
+        ) : (
+          <FlatList
+            data={homes}
+            keyExtractor={(item) => item.id}
+            renderItem={renderHome}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalListContainer}
+            snapToInterval={280} // width + margin
+            decelerationRate="fast"
+            snapToAlignment="start"
+          />
+        )}
       </View>
-
-      {/* Add Home modal */}
-      <Modal
-        transparent
-        animationType="slide"
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.backdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Home</Text>
-            <TextInput
-              placeholder="Home Name"
-              placeholderTextColor="#888"
-              value={newName}
-              onChangeText={setNewName}
-              style={styles.input}
-            />
-            <View style={styles.modalRow}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelTxt}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={addHome}>
-                <Text style={styles.saveTxt}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  /* Responsive wrapper */
   screenWrapper: {
     flex: 1,
     alignItems: 'center',
@@ -126,113 +150,94 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    maxWidth: MAX_WIDTH,
+    maxWidth: 640,
     alignSelf: 'center',
-    backgroundColor: Colors.background,
+    padding: Spacing(4),
   },
-
-  /* Header */
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing(4),
+  weatherCard: {
+    backgroundColor: '#E6F2FF',
+    borderRadius: 24,
+    paddingVertical: Spacing(6),
+    paddingHorizontal: Spacing(5),
+    marginBottom: Spacing(6),
     marginTop: Spacing(6),
-    marginBottom: Spacing(2),
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing(2),
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  temperature: {
+    fontFamily: 'Dongle-Bold',
+    fontSize: 72,
+    color: '#3A85FF',
+    marginBottom: Spacing(0.5),
+  },
+  city: {
+    fontFamily: 'Dongle-Bold',
+    fontSize: 28,
+    color: Colors.textPrimary,
+    marginBottom: Spacing(0.5),
+  },
+  date: {
+    fontFamily: 'Dongle-Regular',
+    fontSize: 20,
+    color: Colors.textSecondary,
+  },
+  time: {
+    fontFamily: 'Dongle-Bold',
+    fontSize: 36,
+    color: Colors.textPrimary,
+    marginTop: Spacing(3),
+    textAlign: 'center',
   },
   title: {
     fontFamily: 'Dongle-Bold',
     fontSize: 48,
     color: Colors.textPrimary,
+    textAlign: 'center',
+    marginVertical: Spacing(3),
   },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing(1) },
-  addTxt: {
-    fontFamily: 'Dongle-Regular',
-    fontSize: 24,
-    color: Colors.primary,
-    marginLeft: Spacing(1),
-  },
-
-  /* Card */
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 20,
+    width: 260,
+    height: 200,
+    marginHorizontal: Spacing(2),
     padding: Spacing(4),
-    marginHorizontal: Spacing(4),
-    marginBottom: Spacing(3),
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing(3),
-    elevation: 2,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardWeb: {
     cursor: 'pointer',
-    transitionDuration: '150ms',
-    transitionProperty: 'transform',
   } as any,
   homeName: {
     fontFamily: 'Dongle-Regular',
     fontSize: 36,
     color: Colors.textPrimary,
-  },
-
-  /* Modal */
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCard: {
-    width: '80%',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing(6),
-    gap: Spacing(4),
-  },
-  modalTitle: {
-    fontFamily: 'Dongle-Bold',
-    fontSize: 40,
     textAlign: 'center',
-    color: Colors.textPrimary,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingVertical: Spacing(2),
+  iconWrapper: {
+    marginBottom: 10,
+  },
+  noHomesText: {
+    marginTop: Spacing(10),
+    fontFamily: 'Dongle-Regular',
+    fontSize: 28,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  horizontalListContainer: {
     paddingHorizontal: Spacing(3),
-    fontFamily: 'Dongle-Regular',
-    fontSize: 28,
-    color: Colors.textPrimary,
-  },
-  modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing(2),
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-  },
-  cancelBtn: {
-    backgroundColor: '#e2e8f0',
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(4),
-    borderRadius: 8,
-  },
-  cancelTxt: {
-    fontFamily: 'Dongle-Regular',
-    fontSize: 28,
-    color: Colors.textPrimary,
-  },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(4),
-    borderRadius: 8,
-  },
-  saveTxt: {
-    fontFamily: 'Dongle-Bold',
-    fontSize: 28,
-    color: Colors.surface,
+    paddingBottom: Spacing(6),
   },
 });

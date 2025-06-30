@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   SafeAreaView,
   Platform,
   Pressable,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,7 +27,7 @@ const { height } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 
 // ✅ Use your local network IP here — not localhost for mobile
-const API_URL = 'http://146.0.23.48:3000';
+const API_URL = 'http://api.fradomos.al:3000';
 
 type LoginScreenNavProp = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -39,6 +41,8 @@ export default function LoginScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const [showForm, setShowForm] = useState(false);
+
+  const passwordRef = useRef<TextInput>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -117,17 +121,30 @@ export default function LoginScreen({ navigation }: Props) {
               value={user}
               onChangeText={setUser}
               style={styles.input}
+              returnKeyType="next"
+              onSubmitEditing={() => {
+                passwordRef.current?.focus();
+              }}
+              blurOnSubmit={false}
             />
 
-            <InputField
+            <TextInput
+              ref={passwordRef}
               placeholder="Password"
               secureTextEntry={!showPassword}
               value={pass}
               onChangeText={setPass}
               style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                Keyboard.dismiss();
+                handleLogin();
+              }}
+              placeholderTextColor="#888"
+              autoCapitalize="none"
             />
 
-            <Pressable onPress={() => setShowPassword(!showPassword)}>
+            <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.showPassBtn}>
               <Text style={styles.showPassToggle}>
                 {showPassword ? 'Hide Password' : 'Show Password'}
               </Text>
@@ -180,12 +197,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  showPassBtn: {
+    alignSelf: 'center',
+    marginBottom: Spacing(3),
+  },
   showPassToggle: {
-    color: '#ddd',
-    fontSize: 16,
-    fontWeight: '500',
+    fontFamily: 'Dongle-Regular',
+    color: Colors.surface,
+    fontSize: 28,
+    fontWeight: '400',
     textAlign: 'center',
-    marginBottom: Spacing(2),
   },
   loginButton: {
     marginTop: Spacing(4),
@@ -198,8 +219,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   signupText: {
+    fontFamily: 'Dongle-Regular',
     color: '#1E90FF',
-    fontSize: 18,
+    fontSize: 28,
     fontWeight: '600',
   },
 });

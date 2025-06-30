@@ -1,5 +1,4 @@
-// HomeScreen.tsx – Rooms inside a single home
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,143 +6,123 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  Modal,
-  TextInput,
   Alert,
+  ActivityIndicator,
   Platform,
+  Dimensions,
 } from 'react-native';
-import { RouteProp } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing } from '../constant/Colors';
+import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
-const MAX_WIDTH = 640;
+const API_URL = 'http://api.fradomos.al:3000';
 
-type HomeRouteProp = RouteProp<RootStackParamList, 'Home'>;
-type HomeNavProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
+type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 
-type Room = { id: string; name: string };
-
-const initialRooms: Record<string, Room[]> = {
-  'Main House': [
-    { id: 'r1', name: 'Living Room' },
-    { id: 'r2', name: 'Kitchen' },
-  ],
-  'Vacation Villa': [{ id: 'r1', name: 'Master Bedroom' }],
+type Props = {
+  route: HomeScreenRouteProp;
+  navigation: any;
 };
 
-export default function HomeScreen({
-  route,
-  navigation,
-}: {
-  route: HomeRouteProp;
-  navigation: HomeNavProp;
-}) {
-  const { homeName } = route.params;
-  const [rooms, setRooms] = useState<Room[]>(initialRooms[homeName] ?? []);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<Room | null>(null);
-  const [roomName, setRoomName] = useState('');
+type Room = {
+  id: string;
+  name: string;
+  circuit_id?: string;
+  home_id?: string | number;
+};
 
-  const openAdd = () => {
-    setEditing(null);
-    setRoomName('');
-    setModalVisible(true);
-  };
+export default function HomeScreen({ route, navigation }: Props) {
+  const { homeId, homeName } = route.params;
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const openEdit = (room: Room) => {
-    setEditing(room);
-    setRoomName(room.name);
-    setModalVisible(true);
-  };
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          Alert.alert('Error', 'User not logged in');
+          return;
+        }
 
-  const saveRoom = () => {
-    if (!roomName.trim()) return Alert.alert('Name required');
+        const res = await fetch(`${API_URL}/rooms`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    if (editing) {
-      setRooms((prev) => prev.map((r) => (r.id === editing.id ? { ...r, name: roomName.trim() } : r)));
-    } else {
-      const id = Date.now().toString();
-      setRooms((prev) => [...prev, { id, name: roomName.trim() }]);
-    }
-    setModalVisible(false);
-  };
+        if (!res.ok) {
+          throw new Error(`Failed to fetch rooms: ${res.status}`);
+        }
 
-  const deleteRoom = () => {
-    if (!editing) return;
-    setRooms((prev) => prev.filter((r) => r.id !== editing.id));
-    setModalVisible(false);
-  };
+        const data: Room[] = await res.json();
+        const filtered = data.filter((room) => String(room.home_id) === String(homeId));
+        setRooms(filtered);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to fetch rooms');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, [homeId]);
 
   const renderRoom = ({ item }: { item: Room }) => (
     <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('Room', { name: item.name })}
+      style={[styles.card, Platform.OS === 'web' && styles.cardWeb]}
+      onPress={() => navigation.navigate('Room', { roomId: item.id, roomName: item.name })}
+      activeOpacity={0.9}
     >
-      <View style={styles.cardLeft}>
-        <Ionicons name="grid-outline" size={28} color={Colors.primary} />
-        <Text style={styles.roomName}>{item.name}</Text>
-      </View>
-      <TouchableOpacity onPress={() => openEdit(item)}>
-        <Ionicons name="pencil-outline" size={20} color={Colors.textSecondary} />
-      </TouchableOpacity>
+      <Ionicons name="cube-outline" size={44} color={Colors.primary} />
+      <Text style={styles.roomName} numberOfLines={2}>{item.name}</Text>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.screenWrapper, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screenWrapper}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={28} color={Colors.primary} />
-          </TouchableOpacity>
+        <View style={styles.headerRow}>
           <Text style={styles.title}>{homeName}</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-            <Ionicons name="add-circle-outline" size={28} color={Colors.primary} />
-            <Text style={styles.addTxt}>Add Room</Text>
+          <TouchableOpacity
+            onPress={() => console.log('Edit or settings pressed')}
+            style={styles.editBtn}
+          >
+            <Ionicons name="settings-outline" size={32} color={Colors.primary} />
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={rooms}
-          keyExtractor={(r) => r.id}
-          contentContainerStyle={{ paddingBottom: Spacing(8) }}
-          renderItem={renderRoom}
-        />
+        {rooms.length === 0 ? (
+          <Text style={styles.noRoomsText}>This home has no rooms yet.</Text>
+        ) : (
+          <FlatList
+            data={rooms}
+            keyExtractor={(room) => room.id}
+            renderItem={renderRoom}
+            showsVerticalScrollIndicator={false}
+            numColumns={2}
+            columnWrapperStyle={styles.gridRow}
+            contentContainerStyle={{ paddingBottom: Spacing(6) }}
+          />
+        )}
       </View>
-
-      <Modal transparent animationType="slide" visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Room' : 'Add Room'}</Text>
-            <TextInput
-              placeholder="Room Name"
-              placeholderTextColor="#888"
-              value={roomName}
-              onChangeText={setRoomName}
-              style={styles.input}
-            />
-            <View style={styles.modalRow}>
-              {editing && (
-                <TouchableOpacity style={styles.delBtn} onPress={deleteRoom}>
-                  <Ionicons name="trash-outline" size={20} color="#fff" />
-                  <Text style={styles.delTxt}>Delete</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelTxt}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={saveRoom}>
-                <Text style={styles.saveTxt}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
+
+const screenWidth = Dimensions.get('window').width;
+const cardSpacing = Spacing(2);
+const fullCardWidth = (screenWidth - Spacing(8)) / 2;
 
 const styles = StyleSheet.create({
   screenWrapper: {
@@ -157,124 +136,57 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
     backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing(4),
-    marginTop: Spacing(6),
-    marginBottom: Spacing(2),
+    paddingTop: Spacing(6),
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing(3),
   },
   title: {
-    flex: 1,
-    textAlign: 'center',
     fontFamily: 'Dongle-Bold',
     fontSize: 48,
     color: Colors.textPrimary,
   },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing(1),
+  editBtn: {
+    padding: Spacing(2),
   },
-  addTxt: {
-    fontFamily: 'Dongle-Regular',
-    fontSize: 24,
-    color: Colors.primary,
-    marginLeft: Spacing(1),
+  gridRow: {
+    justifyContent: 'space-between',
+    marginBottom: 0,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    width: fullCardWidth - cardSpacing,
+    height: fullCardWidth - cardSpacing,
+    borderRadius: 20,
     padding: Spacing(4),
-    marginHorizontal: Spacing(4),
-    marginBottom: Spacing(3),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    elevation: 2,
-  },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing(3),
-  },
-  roomName: {
-    fontFamily: 'Dongle-Regular',
-    fontSize: 36,
-    color: Colors.textPrimary,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    marginBottom: Spacing(4),
   },
-  modalCard: {
-    width: '85%',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing(6),
-    gap: Spacing(4),
-  },
-  modalTitle: {
-    fontFamily: 'Dongle-Bold',
-    fontSize: 40,
+  cardWeb: {
+    cursor: 'pointer',
+  } as any,
+  roomName: {
+    fontFamily: 'Dongle-Regular',
+    fontSize: 30,
+    color: Colors.textPrimary,
     textAlign: 'center',
-    color: Colors.textPrimary,
+    marginTop: Spacing(6),
   },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(3),
+  noRoomsText: {
     fontFamily: 'Dongle-Regular',
     fontSize: 28,
-    color: Colors.textPrimary,
-  },
-  modalRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: Spacing(2),
-    flexWrap: 'nowrap',
-  },
-  cancelBtn: {
-    backgroundColor: '#e2e8f0',
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(4),
-    borderRadius: 8,
-  },
-  cancelTxt: {
-    fontFamily: 'Dongle-Regular',
-    fontSize: 28,
-    color: Colors.textPrimary,
-  },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(4),
-    borderRadius: 8,
-  },
-  saveTxt: {
-    fontFamily: 'Dongle-Bold',
-    fontSize: 28,
-    color: Colors.surface,
-  },
-  delBtn: {
-    backgroundColor: '#ef4444',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing(1),
-    paddingVertical: Spacing(2),
-    paddingHorizontal: Spacing(4),
-    borderRadius: 8,
-  },
-  delTxt: {
-    fontFamily: 'Dongle-Bold',
-    fontSize: 28,
-    color: '#fff',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing(10),
   },
 });

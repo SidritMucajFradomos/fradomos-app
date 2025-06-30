@@ -16,7 +16,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import { Colors, Spacing } from '../constant/Colors';
 import axios from 'axios';
 
-const API_URL = 'http://146.0.23.48:3000'; // ✅ Adjust as needed for your LAN
+const API_URL = 'http://api.fradomos.al:3000';
 
 type SignupScreenNavProp = NativeStackNavigationProp<RootStackParamList, 'Signup'>;
 
@@ -85,10 +85,13 @@ export default function SignupScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screenWrapper}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <ScrollView contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scrollInner}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.title}>Create Account</Text>
 
           <TextInput placeholder="First Name" value={firstName} onChangeText={setFirstName} style={styles.input} />
@@ -113,21 +116,17 @@ export default function SignupScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screenWrapper: {
     flex: 1,
-    alignItems: 'center',
     backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-    backgroundColor: Colors.background,
     paddingHorizontal: Spacing(6),
+    backgroundColor: Colors.background,
   },
   scrollInner: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: Spacing(8),
+    paddingVertical: Spacing(6),
   },
   title: {
     fontFamily: 'Dongle-Bold',
@@ -151,7 +150,6 @@ const styles = StyleSheet.create({
   signupButton: {
     marginTop: Spacing(4),
     paddingHorizontal: Spacing(6),
-    minWidth: Platform.OS === 'web' ? 200 : undefined,
     alignSelf: 'center',
   },
 });
