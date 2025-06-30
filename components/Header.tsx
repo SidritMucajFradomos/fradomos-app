@@ -59,6 +59,8 @@ const Header = () => {
           <Ionicons name="notifications-outline" size={28} color="black" />
           <Text style={styles.iconText}>Alerts</Text>
         </TouchableOpacity>
+
+      
       </View>
     </View>
   );
