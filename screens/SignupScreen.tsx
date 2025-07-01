@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   Alert,
-  Platform,
   SafeAreaView,
-  ScrollView,
-  KeyboardAvoidingView,
+  Animated,
+  Platform,
+  Pressable,
+  Dimensions,
+  Keyboard,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import PrimaryButton from '../components/PrimaryButton';
+import InputField from '../components/InputField';
 import { Colors, Spacing } from '../constant/Colors';
 import axios from 'axios';
 
+const MAX_WIDTH = 640;
 const API_URL = 'http://api.fradomos.al:3000';
 
 type SignupScreenNavProp = NativeStackNavigationProp<RootStackParamList, 'Signup'>;
@@ -25,13 +30,29 @@ type Props = {
 };
 
 export default function SignupScreen({ navigation }: Props) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [showForm, setShowForm] = useState(false);
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowForm(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSignup = async () => {
     if (!username || !email || !password || !firstName || !lastName || !phoneNumber) {
@@ -41,7 +62,6 @@ export default function SignupScreen({ navigation }: Props) {
 
     try {
       setIsLoading(true);
-
       const res = await axios.post(`${API_URL}/auth/register`, {
         username,
         password,
@@ -61,95 +81,149 @@ export default function SignupScreen({ navigation }: Props) {
       }
     } catch (err: any) {
       setIsLoading(false);
-      console.error('Signup error:', err);
-
-      if (err.response && err.response.data) {
-        const data = err.response.data;
-        if (data.errors) {
-          const messages = data.errors.map((e: any) => e.msg).join('\n');
-          Alert.alert('Validation Error', messages);
-        } else if (data.error) {
-          Alert.alert('Error', data.error);
-        } else {
-          Alert.alert('Error', JSON.stringify(data));
-        }
-      } else if (err.request) {
-        Alert.alert('Network Error', 'No response from server. Is it running?');
+      if (err.response?.data?.errors) {
+        const msg = err.response.data.errors.map((e: any) => e.msg).join('\n');
+        Alert.alert('Validation Error', msg);
+      } else if (err.response?.data?.error) {
+        Alert.alert('Error', err.response.data.error);
       } else {
-        Alert.alert('Error', err.message);
+        Alert.alert('Error', 'Something went wrong');
+        console.error(err);
       }
     }
   };
 
   return (
-    <SafeAreaView style={styles.screenWrapper}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollInner}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.title}>Create Account</Text>
+    <LinearGradient colors={['#001636', '#1d3659', '#0252c4']} style={styles.fullScreen}>
+      <SafeAreaView style={screenStyles.screenWrapper}>
+        {showForm && (
+          <Animated.View style={[screenStyles.container, { opacity: fadeAnim }]}>
+            <Text style={styles.title}>Create your account</Text>
 
-          <TextInput placeholder="First Name" value={firstName} onChangeText={setFirstName} style={styles.input} />
-          <TextInput placeholder="Last Name" value={lastName} onChangeText={setLastName} style={styles.input} />
-          <TextInput placeholder="Phone Number" value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" style={styles.input} />
-          <TextInput placeholder="Username" value={username} onChangeText={setUsername} style={styles.input} />
-          <TextInput placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" style={styles.input} />
-          <TextInput placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+            <InputField placeholder="First Name" value={firstName} onChangeText={setFirstName} style={styles.input} />
+            <InputField placeholder="Last Name" value={lastName} onChangeText={setLastName} style={styles.input} />
+            <InputField
+              placeholder="Phone Number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              style={styles.input}
+            />
+            <InputField placeholder="Username" value={username} onChangeText={setUsername} style={styles.input} />
+            <InputField
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              style={styles.input}
+              placeholderTextColor="#888"
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                Keyboard.dismiss();
+                handleSignup();
+              }}
+            />
 
-          <PrimaryButton
-            title={isLoading ? 'Signing Up...' : 'Sign Up'}
-            onPress={handleSignup}
-            style={styles.signupButton}
-            disabled={isLoading}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.showPassBtn}>
+              <Text style={styles.showPassToggle}>
+                {showPassword ? 'Hide Password' : 'Show Password'}
+              </Text>
+            </Pressable>
+
+            <PrimaryButton
+              title={isLoading ? 'Signing Up...' : 'Sign Up'}
+              onPress={handleSignup}
+              style={styles.signupButton}
+              disabled={isLoading}
+            />
+
+            <Pressable onPress={() => navigation.replace('Login')} style={styles.signupLink}>
+              <Text style={styles.signupText}>Already have an account? Login</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  screenWrapper: {
+  fullScreen: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: Spacing(6),
-    backgroundColor: Colors.background,
-  },
-  scrollInner: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingVertical: Spacing(6),
   },
   title: {
     fontFamily: 'Dongle-Bold',
     fontSize: 48,
     textAlign: 'center',
-    color: Colors.textPrimary,
+    color: Colors.surface,
     marginBottom: Spacing(6),
   },
   input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
+    width: 300,
+    maxWidth: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 10,
     paddingVertical: Spacing(2),
     paddingHorizontal: Spacing(3),
+    fontSize: 24,
     fontFamily: 'Dongle-Regular',
-    fontSize: 28,
     color: Colors.textPrimary,
-    marginBottom: Spacing(4),
-    backgroundColor: Colors.surface,
+    marginBottom: Spacing(3),
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  showPassBtn: {
+    alignSelf: 'center',
+    marginBottom: Spacing(3),
+  },
+  showPassToggle: {
+    fontFamily: 'Dongle-Regular',
+    color: Colors.surface,
+    fontSize: 28,
+    fontWeight: '400',
+    textAlign: 'center',
   },
   signupButton: {
     marginTop: Spacing(4),
     paddingHorizontal: Spacing(6),
     alignSelf: 'center',
+  },
+  signupLink: {
+    marginTop: Spacing(4),
+    alignSelf: 'center',
+  },
+  signupText: {
+    fontFamily: 'Dongle-Regular',
+    color: '#1E90FF',
+    fontSize: 28,
+    fontWeight: '600',
+  },
+});
+
+const screenStyles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: MAX_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing(6),
   },
 });

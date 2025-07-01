@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fradomos",
     "slug": "fradomos-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +24,7 @@
       },
       "permissions": [],
       "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true
+      "useCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -34,9 +34,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "e8ff7844-3ddb-424c-b84d-d074637dec2c"
+        "projectId": "087c0fee-4a93-4902-a743-1a7a5b122f5b"
       }
     },
-    "owner": "fradomos"
+    "owner": "fradomosapp"
   }
 }

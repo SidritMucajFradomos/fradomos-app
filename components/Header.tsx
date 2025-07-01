@@ -35,10 +35,7 @@ const Header = () => {
       ]}
     >
       <View style={styles.iconRow}>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.iconButton}>
-          <Ionicons name="person-circle-outline" size={28} color="black" />
-          <Text style={styles.iconText}>Profile</Text>
-        </TouchableOpacity>
+        
 
         <TouchableOpacity onPress={() => navigation.navigate('Homes')} style={styles.iconButton}>
           <Ionicons name="home-outline" size={28} color="black" />
@@ -50,15 +47,22 @@ const Header = () => {
           <Text style={styles.iconText}>Users</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.iconButton}>
+          <Ionicons name="notifications-outline" size={28} color="black" />
+          <Text style={styles.iconText}>Alerts</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.iconButton}>
           <Ionicons name="settings-outline" size={28} color="black" />
           <Text style={styles.iconText}>Settings</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.iconButton}>
-          <Ionicons name="notifications-outline" size={28} color="black" />
-          <Text style={styles.iconText}>Alerts</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.iconButton}>
+          <Ionicons name="person-circle-outline" size={28} color="black" />
+          <Text style={styles.iconText}>Profile</Text>
         </TouchableOpacity>
+
+      
       </View>
     </View>
   );
