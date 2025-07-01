@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing } from '../constant/Colors';
 
-// Hardcoded weather info
 const weatherIconName = 'partly-sunny-outline';
 const weatherTemperature = 26; // °C
 const weatherCity = 'Tirana';
@@ -40,7 +39,7 @@ function formatTime() {
 
 const API_URL = 'http://api.fradomos.al:3000';
 
-type Home = { id: string; name: string };
+type Home = { id: string; name: string; role: 'owner' | 'member' };
 
 export default function HomesScreen({ navigation }: any) {
   const [homes, setHomes] = useState<Home[]>([]);
@@ -60,18 +59,25 @@ export default function HomesScreen({ navigation }: any) {
         return;
       }
 
-      const res = await fetch(`${API_URL}/homes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const [ownedRes, memberRes] = await Promise.all([
+        fetch(`${API_URL}/homes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/home-members`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch homes');
-      }
+      if (!ownedRes.ok || !memberRes.ok) throw new Error('Failed to fetch homes');
 
-      const data: Home[] = await res.json();
-      setHomes(data);
+      const ownedHomes = await ownedRes.json();
+      const memberHomes = await memberRes.json();
+
+      const owned: Home[] = ownedHomes.map((h: any) => ({ ...h, role: 'owner' }));
+      const members: Home[] = memberHomes.map((h: any) => ({ ...h, role: 'member' }));
+
+      const combined = [...owned, ...members];
+      setHomes(combined);
     } catch (error) {
       Alert.alert('Error', (error as Error).message);
     } finally {
@@ -92,9 +98,12 @@ export default function HomesScreen({ navigation }: any) {
       activeOpacity={0.85}
     >
       <Ionicons name="home-outline" size={48} color={Colors.primary} style={{ marginBottom: Spacing(2) }} />
-      <Text style={styles.homeName} numberOfLines={2} textAlign="center">
+      <Text style={styles.homeName} numberOfLines={2}>
         {item.name}
       </Text>
+      {item.role === 'member' && (
+        <Text style={styles.memberTag}>Shared with you</Text>
+      )}
     </TouchableOpacity>
   );
 
@@ -109,7 +118,6 @@ export default function HomesScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.screenWrapper}>
       <View style={styles.container}>
-
         {/* Weather Card */}
         <View style={styles.weatherCard}>
           <Ionicons name={weatherIconName} size={70} color="#3A85FF" />
@@ -131,7 +139,7 @@ export default function HomesScreen({ navigation }: any) {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalListContainer}
-            snapToInterval={280} // width + margin
+            snapToInterval={280}
             decelerationRate="fast"
             snapToAlignment="start"
           />
@@ -226,8 +234,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'center',
   },
-  iconWrapper: {
-    marginBottom: 10,
+  memberTag: {
+    marginTop: 6,
+    fontSize: 20,
+    color: Colors.textSecondary,
+    fontFamily: 'Dongle-Regular',
+    opacity: 0.6,
   },
   noHomesText: {
     marginTop: Spacing(10),

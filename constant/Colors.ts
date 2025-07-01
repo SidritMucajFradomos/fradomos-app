@@ -7,6 +7,7 @@ export const Colors = {
   textSecondary: '#475569',// slate‑600
   border: '#E2E8F0',       // slate‑200
   error: '#ef4444',
+  shadow: '#00000033',
 };
 
 export const Font = {
