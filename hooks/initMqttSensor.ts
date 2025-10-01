@@ -6,7 +6,7 @@ export interface SensorData {
   humidity?: number;
 }
 
-const BROKER_WS = 'mqtt://fradomos.local:1883';
+const BROKER_WS = 'mqtt://192.168.1.134:1883';
 const SENSOR_TOPIC = 'home/livingroom/sensor';
 
 const MQTT_USERNAME = 'admin';  // Your MQTT username

@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   RefreshControl,
   DeviceEventEmitter, // added
+  ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -165,6 +166,13 @@ export default function NotificationsScreen() {
   }, []);
   const styles = React.useMemo(() => createStyles(), [themeTick]);
 
+  // Sort notifications from newest to oldest (by id order in this mock)
+  const sortedNotifications = [...fakeNotifications];
+
+  // If you want to sort by time, you could implement a custom sort function here.
+  // For now, reverse the array to show the last item (newest) first:
+  sortedNotifications.reverse();
+
   if (loading) {
     return (
       <SafeAreaView style={styles.wrapperCenter}>
@@ -177,103 +185,88 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.wrapper}>
       <ErrorBanner message={errorMsg} onDismiss={() => setErrorMsg(null)} />
       <LoadingOverlay visible={!!actingId} text="Updating invite..." />
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 180 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Invitations</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={onRefresh} style={styles.headerIconBtn}>
-              <Ionicons name="refresh-outline" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleClearAll} style={styles.headerIconBtn}>
-              <Ionicons name="trash-outline" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.title}>Notifications</Text>
+          {/* Removed headerActions (delete and refresh buttons) */}
         </View>
 
-        {/* Use a single FlatList with a header for Alerts and Invitations header */}
-        <FlatList
-          data={invites.length ? invites : []}
-          keyExtractor={(item: any, index) => (item?.id ? String(item.id) : `sep-${index}`)}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={() => (
-            <>
-              {/* Alerts on top */}
-              <View style={styles.subHeaderRow}>
-                <Text style={styles.subTitle}>Recent Notifications</Text>
+        {/* Invitations at the top */}
+        <View style={styles.subHeaderRow}>
+          <Text style={styles.subTitle}>Invitations</Text>
+        </View>
+        <View style={styles.countBadge}><Text style={styles.countBadgeText}>{invites.length}</Text></View>
+        {!invites.length && (
+          <View style={styles.emptyState}>
+            <Ionicons name="notifications-off-outline" size={32} color={Colors.textSecondary} />
+            <Text style={styles.emptyText}>No pending invitations.</Text>
+          </View>
+        )}
+        {invites.map((item) => (
+          <View key={item.id} style={styles.inviteCard}>
+            <View style={styles.inviteHeader}>
+              <View style={styles.avatar}>
+                <Ionicons name="person-add-outline" size={18} color={Colors.textSecondary} />
               </View>
-              {fakeNotifications.map((n) => (
-                <View key={n.id} style={[styles.notifCard, n.severity === 'critical' && styles.notifCardCritical, n.severity === 'warning' && styles.notifCardWarning]}>
-                  <View style={styles.notifRow}>
-                    <View style={styles.avatar}>
-                      <Ionicons name={n.icon} size={18} color={n.severity === 'critical' ? '#f44336' : n.severity === 'warning' ? '#ff9800' : Colors.textSecondary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.boldText}>{n.title}</Text>
-                      <Text style={styles.inviteText}>{n.message}</Text>
-                    </View>
-                    <View style={styles.notifRight}>
-                      {n.severity && (
-                        <View style={[styles.badge, n.severity === 'critical' ? styles.badgeCritical : styles.badgeWarning]}>
-                          <Text style={styles.badgeText}>{n.severity === 'critical' ? 'ALERT' : 'Warning'}</Text>
-                        </View>
-                      )}
-                      <Text style={styles.metaText}>{n.time}</Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-
-              {/* Invitations section header and count */}
-              <View style={styles.subHeaderRow}>
-                <Text style={styles.subTitle}>Invitations</Text>
-              </View>
-              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{invites.length}</Text></View>
-              {!invites.length && (
-                <View style={styles.emptyState}>
-                  <Ionicons name="notifications-off-outline" size={32} color={Colors.textSecondary} />
-                  <Text style={styles.emptyText}>No pending invitations.</Text>
-                </View>
-              )}
-            </>
-          )}
-          renderItem={({ item }) => (
-            <View style={styles.inviteCard}>
-              <View style={styles.inviteHeader}>
-                <View style={styles.avatar}>
-                  <Ionicons name="person-add-outline" size={18} color={Colors.textSecondary} />
-                </View>
-                <Text style={styles.inviteText}>
-                  <Text style={styles.boldText}>
-                    {item.invited_by_first_name} {item.invited_by_last_name}
-                  </Text>
-                  <Text> invited you to </Text>
-                  <Text style={styles.boldText}>{item.house_name}</Text>
+              <Text style={styles.inviteText}>
+                <Text style={styles.boldText}>
+                  {item.invited_by_first_name} {item.invited_by_last_name}
                 </Text>
+                <Text> invited you to </Text>
+                <Text style={styles.boldText}>{item.house_name}</Text>
+              </Text>
+            </View>
+            <View style={styles.buttonsRow}>
+              <TouchableOpacity
+                style={[styles.button, styles.acceptButton]}
+                onPress={() => handleRespond(item.id, true)}
+                disabled={actingId === item.id}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                <Text style={styles.buttonText}>Accept</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.declineButton]}
+                onPress={() => handleRespond(item.id, false)}
+                disabled={actingId === item.id}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#fff" />
+                <Text style={styles.buttonText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        {/* Recent Notifications below */}
+        <View style={styles.subHeaderRow}>
+          <Text style={styles.subTitle}>Recent Notifications</Text>
+        </View>
+        {sortedNotifications.map((n) => (
+          <View key={n.id} style={[styles.notifCard, n.severity === 'critical' && styles.notifCardCritical, n.severity === 'warning' && styles.notifCardWarning]}>
+            <View style={styles.notifRow}>
+              <View style={styles.avatar}>
+                <Ionicons name={n.icon} size={18} color={n.severity === 'critical' ? '#f44336' : n.severity === 'warning' ? '#ff9800' : Colors.textSecondary} />
               </View>
-              <View style={styles.buttonsRow}>
-                <TouchableOpacity
-                  style={[styles.button, styles.acceptButton]}
-                  onPress={() => handleRespond(item.id, true)}
-                  disabled={actingId === item.id}
-                >
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                  <Text style={styles.buttonText}>Accept</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, styles.declineButton]}
-                  onPress={() => handleRespond(item.id, false)}
-                  disabled={actingId === item.id}
-                >
-                  <Ionicons name="close-circle-outline" size={18} color="#fff" />
-                  <Text style={styles.buttonText}>Decline</Text>
-                </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.boldText}>{n.title}</Text>
+                <Text style={styles.inviteText}>{n.message}</Text>
+              </View>
+              <View style={styles.notifRight}>
+                {n.severity && (
+                  <View style={[styles.badge, n.severity === 'critical' ? styles.badgeCritical : styles.badgeWarning]}>
+                    <Text style={styles.badgeText}>{n.severity === 'critical' ? 'ALERT' : 'Warning'}</Text>
+                  </View>
+                )}
+                <Text style={styles.metaText}>{n.time}</Text>
               </View>
             </View>
-          )}
-          ListFooterComponent={<View style={{ height: Spacing(16) }} />}
-        />
-      </View>
+          </View>
+        ))}
+      </ScrollView>
     </SafeAreaView>
   );
 }
